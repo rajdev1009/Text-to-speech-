@@ -14,10 +14,9 @@ st.set_page_config(
 # --- 2. Title and Branding ---
 st.title("🎙️ AstraToonix AI Voice Generator")
 st.markdown("### Create Realistic Voices for Comedy & Videos")
-st.info("Note: This uses Coqui XTTS v2 via Hugging Face. Ensure your audio sample is clear.")
+st.info("Note: Using 'tonyassi/xtts-v2' server. Ensure audio sample is clear.")
 
 # --- 3. User Inputs ---
-# Input Text
 text_input = st.text_area(
     "Enter Text (Hindi/English):", 
     "नमस्ते राजदेव भाई, AstraToonix चैनल पर आपका स्वागत है!",
@@ -27,7 +26,7 @@ text_input = st.text_area(
 # Language Selection
 language = st.selectbox("Language", ["hi", "en"], index=0, format_func=lambda x: "Hindi" if x == "hi" else "English")
 
-# Reference Audio Upload (Updated for m4a support)
+# Reference Audio Upload (M4A Support)
 uploaded_file = st.file_uploader("Upload Reference Audio (WAV/MP3/M4A, 5-10 sec)", type=['wav', 'mp3', 'm4a'])
 
 # --- 4. Logic to Generate Audio ---
@@ -45,10 +44,10 @@ if st.button("Generate Voice 🚀", type="primary"):
             status_text.text("Processing your reference audio...")
             status_bar.progress(20)
             
-            # Detect extension (wav, mp3, m4a) correctly
+            # Detect extension
             file_extension = os.path.splitext(uploaded_file.name)[1]
             if not file_extension:
-                file_extension = ".wav" # Default safe fallback
+                file_extension = ".wav"
             
             temp_filename = f"temp_ref{file_extension}"
             
@@ -56,11 +55,11 @@ if st.button("Generate Voice 🚀", type="primary"):
                 f.write(uploaded_file.getbuffer())
 
             # Step B: Connect to Hugging Face
-            status_text.text("Connecting to AI Model...")
+            status_text.text("Connecting to AI Model (Server: tonyassi)...")
             status_bar.progress(40)
             
-            # FIX: Removed 'hf_token' to prevent the crash
-            client = Client("https://coqui-xtts-v2.hf.space/")
+            # NEW SERVER ADDRESS (More Stable)
+            client = Client("tonyassi/xtts-v2")
 
             # Step C: Send Request
             status_text.text("Generating Voice... (Please wait 30-60 seconds)")
@@ -70,13 +69,13 @@ if st.button("Generate Voice 🚀", type="primary"):
             result = client.predict(
                 text_input,      # Text
                 language,        # Language
-                temp_filename,   # Reference Audio path
-                temp_filename,   # Mic Audio (same path)
+                temp_filename,   # Reference Audio
+                temp_filename,   # Mic Audio
                 False,           # Use Mic
                 False,           # Cleanup
-                True,            # Auto-detect off
+                False,           # Auto-detect off (updated param)
                 True,            # Agree to TOS
-                fn_index=1
+                fn_index=0       # Updated index for this server
             )
             
             status_bar.progress(90)
@@ -98,5 +97,5 @@ if st.button("Generate Voice 🚀", type="primary"):
         except Exception as e:
             status_bar.empty()
             st.error(f"❌ Error occurred: {e}")
-            st.warning("Tip: If the server is busy (Queue full), try again in 2 minutes.")
+            st.warning("Tip: Server might be busy. Wait 1 minute and try again.")
             
