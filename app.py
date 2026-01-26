@@ -34,8 +34,8 @@ text_input = st.text_area(
 # Language Selection
 language = st.selectbox("Language", ["hi", "en"], index=0, format_func=lambda x: "Hindi" if x == "hi" else "English")
 
-# Reference Audio Upload
-uploaded_file = st.file_uploader("Upload Reference Audio (WAV/MP3, 5-10 sec)", type=['wav', 'mp3'])
+# Reference Audio Upload (UPDATED to allow m4a)
+uploaded_file = st.file_uploader("Upload Reference Audio (WAV/MP3/M4A, 5-10 sec)", type=['wav', 'mp3', 'm4a'])
 
 # --- 5. Logic to Generate Audio ---
 if st.button("Generate Voice 🚀", type="primary"):
@@ -48,11 +48,15 @@ if st.button("Generate Voice 🚀", type="primary"):
         status_bar = st.progress(0)
         
         try:
-            # Step A: Save uploaded file temporarily
+            # Step A: Save uploaded file temporarily (Handling Extensions)
             status_text.text("Processing your reference audio...")
             status_bar.progress(20)
             
-            with open("temp_ref.wav", "wb") as f:
+            # Get the correct file extension (e.g., .m4a or .wav)
+            file_extension = os.path.splitext(uploaded_file.name)[1]
+            temp_filename = f"temp_ref{file_extension}"
+            
+            with open(temp_filename, "wb") as f:
                 f.write(uploaded_file.getbuffer())
 
             # Step B: Connect to Hugging Face
@@ -61,27 +65,27 @@ if st.button("Generate Voice 🚀", type="primary"):
             
             client = Client("https://coqui-xtts-v2.hf.space/", hf_token=hf_token)
 
-            # Step C: Send Request (This takes time)
+            # Step C: Send Request
             status_text.text("Generating Voice... (Please wait 30-60 seconds)")
             status_bar.progress(60)
             
-            # API Parameters for XTTS v2
+            # API Parameters
             result = client.predict(
                 text_input,      # Text
                 language,        # Language
-                "temp_ref.wav",  # Reference Audio
-                "temp_ref.wav",  # Mic Audio (Use same)
-                False,           # Use Mic (False)
-                False,           # Cleanup (False)
-                True,            # Do not use auto-detect
+                temp_filename,   # Reference Audio (Updated variable)
+                temp_filename,   # Mic Audio (Use same)
+                False,           # Use Mic
+                False,           # Cleanup
+                True,            # Auto-detect off
                 True,            # Agree to TOS
-                fn_index=1       # Function index for generation
+                fn_index=1
             )
             
             status_bar.progress(90)
             
             # Step D: Process Result
-            audio_path = result[1] # Path to generated file
+            audio_path = result[1] 
             
             # Display Success
             status_text.text("✅ Done! Audio Generated.")
@@ -91,11 +95,11 @@ if st.button("Generate Voice 🚀", type="primary"):
             st.audio(audio_path, format='audio/wav')
             
             # Cleanup
-            if os.path.exists("temp_ref.wav"):
-                os.remove("temp_ref.wav")
+            if os.path.exists(temp_filename):
+                os.remove(temp_filename)
 
         except Exception as e:
             status_bar.empty()
             st.error(f"❌ Error occurred: {e}")
-            st.warning("Tip: If you see a 'Queue' error, the server is busy. Try again in 1 minute.")
-          
+            st.warning("Tip: If you see a 'Queue' error, try again in 1 minute.")
+            
