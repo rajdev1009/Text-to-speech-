@@ -14,16 +14,9 @@ st.set_page_config(
 # --- 2. Title and Branding ---
 st.title("🎙️ AstraToonix AI Voice Generator")
 st.markdown("### Create Realistic Voices for Comedy & Videos")
-st.info("Note: This uses Coqui XTTS v2 via Hugging Face. It requires a Reference Audio for cloning.")
+st.info("Note: This uses Coqui XTTS v2 via Hugging Face. Ensure your audio sample is clear.")
 
-# --- 3. Environment Variable Check ---
-hf_token = os.environ.get("HF_TOKEN")
-
-if not hf_token:
-    st.error("⚠️ Error: 'HF_TOKEN' Environment Variable not found in Koyeb Settings!")
-    st.stop()
-
-# --- 4. User Inputs ---
+# --- 3. User Inputs ---
 # Input Text
 text_input = st.text_area(
     "Enter Text (Hindi/English):", 
@@ -34,10 +27,10 @@ text_input = st.text_area(
 # Language Selection
 language = st.selectbox("Language", ["hi", "en"], index=0, format_func=lambda x: "Hindi" if x == "hi" else "English")
 
-# Reference Audio Upload (UPDATED to allow m4a)
+# Reference Audio Upload (Updated for m4a support)
 uploaded_file = st.file_uploader("Upload Reference Audio (WAV/MP3/M4A, 5-10 sec)", type=['wav', 'mp3', 'm4a'])
 
-# --- 5. Logic to Generate Audio ---
+# --- 4. Logic to Generate Audio ---
 if st.button("Generate Voice 🚀", type="primary"):
     if not uploaded_file:
         st.warning("⚠️ Please upload a reference audio file first!")
@@ -48,22 +41,26 @@ if st.button("Generate Voice 🚀", type="primary"):
         status_bar = st.progress(0)
         
         try:
-            # Step A: Save uploaded file temporarily (Handling Extensions)
+            # Step A: Save uploaded file temporarily
             status_text.text("Processing your reference audio...")
             status_bar.progress(20)
             
-            # Get the correct file extension (e.g., .m4a or .wav)
+            # Detect extension (wav, mp3, m4a) correctly
             file_extension = os.path.splitext(uploaded_file.name)[1]
+            if not file_extension:
+                file_extension = ".wav" # Default safe fallback
+            
             temp_filename = f"temp_ref{file_extension}"
             
             with open(temp_filename, "wb") as f:
                 f.write(uploaded_file.getbuffer())
 
             # Step B: Connect to Hugging Face
-            status_text.text("Connecting to AI Model (Coqui XTTS v2)...")
+            status_text.text("Connecting to AI Model...")
             status_bar.progress(40)
             
-            client = Client("https://coqui-xtts-v2.hf.space/", hf_token=hf_token)
+            # FIX: Removed 'hf_token' to prevent the crash
+            client = Client("https://coqui-xtts-v2.hf.space/")
 
             # Step C: Send Request
             status_text.text("Generating Voice... (Please wait 30-60 seconds)")
@@ -73,8 +70,8 @@ if st.button("Generate Voice 🚀", type="primary"):
             result = client.predict(
                 text_input,      # Text
                 language,        # Language
-                temp_filename,   # Reference Audio (Updated variable)
-                temp_filename,   # Mic Audio (Use same)
+                temp_filename,   # Reference Audio path
+                temp_filename,   # Mic Audio (same path)
                 False,           # Use Mic
                 False,           # Cleanup
                 True,            # Auto-detect off
@@ -101,5 +98,5 @@ if st.button("Generate Voice 🚀", type="primary"):
         except Exception as e:
             status_bar.empty()
             st.error(f"❌ Error occurred: {e}")
-            st.warning("Tip: If you see a 'Queue' error, try again in 1 minute.")
+            st.warning("Tip: If the server is busy (Queue full), try again in 2 minutes.")
             
