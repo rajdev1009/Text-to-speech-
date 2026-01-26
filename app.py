@@ -1,84 +1,67 @@
 import streamlit as st
-from gradio_client import Client
+import edge_tts
+import asyncio
 import os
-import shutil
 
 # --- Page Config ---
-st.set_page_config(page_title="AstraToonix Universal Voice", page_icon="🎙️")
-st.title("🎙️ AstraToonix Voice (Multi-Server)")
-st.info("अगर एक Server काम न करे, तो नीचे लिस्ट में से दूसरा नाम कॉपी करके पेस्ट करें।")
+st.set_page_config(page_title="AstraToonix Voice Tuner", page_icon="🎚️")
 
-# --- Dynamic Space Input ---
-# यहाँ यूजर खुद सर्वर बदल सकता है
-space_id = st.text_input("Hugging Face Space ID:", value="fffiloni/xtts-v2-streaming")
-
-st.markdown("""
-**Try these Spaces if the default fails:**
-1. `fffiloni/xtts-v2-streaming` (Best Public)
-2. `ruslanmv/Text-To-Speech-XTTS` (Backup)
-3. `kiv/xtts-v2` (Another Backup)
-""")
+st.title("🎚️ AstraToonix Voice Tuner")
+st.markdown("### Create Unique Voices (Unlimited & Free)")
+st.info("ℹ️ Since XTTS servers are down globally, we are using Neural Edge TTS with Pitch Control to create unique voices.")
 
 # --- Inputs ---
-text_input = st.text_area("Text (Hindi/English):", "नमस्ते राजदेव भाई! यह एक टेस्ट है।")
-language = st.selectbox("Language", ["hi", "en"], index=0)
-uploaded_file = st.file_uploader("Reference Audio (5-10s)", type=['wav', 'mp3', 'm4a'])
+text_input = st.text_area("Script (Hindi/English):", "नमस्ते राजदेव भाई! AstraToonix चैनल पर आपका स्वागत है।", height=100)
 
-# --- Generation ---
-if st.button("Generate Voice 🚀", type="primary"):
-    if not uploaded_file:
-        st.warning("⚠️ Please upload an audio file first.")
+# Voice Selection
+voice_options = {
+    "Hindi - Swara (Female)": "hi-IN-SwaraNeural",
+    "Hindi - Madhur (Male)": "hi-IN-MadhurNeural",
+    "English - Christopher (Male)": "en-US-ChristopherNeural",
+    "English - Aria (Female)": "en-US-AriaNeural",
+    "English - Guy (Male)": "en-US-GuyNeural"
+}
+selected_voice_name = st.selectbox("Select Base Voice:", list(voice_options.keys()))
+selected_voice_code = voice_options[selected_voice_name]
+
+# --- 🎚️ The Magic Controls (To make it UNIQUE) ---
+col1, col2 = st.columns(2)
+
+with col1:
+    # Rate: -50% (Slow) to +50% (Fast)
+    rate_val = st.slider("Speaking Rate (Speed)", -50, 50, 0, format="%d%%")
+    rate_str = f"{rate_val:+d}%"
+
+with col2:
+    # Pitch: -20Hz (Deep) to +20Hz (High/Chipmunk)
+    pitch_val = st.slider("Pitch (Tone/Bhari-pan)", -20, 20, 0, format="%dHz")
+    pitch_str = f"{pitch_val:+d}Hz"
+
+# --- Generation Logic ---
+async def generate_audio(text, voice, rate, pitch):
+    communicate = edge_tts.Communicate(text, voice, rate=rate, pitch=pitch)
+    output_file = "output_voice.mp3"
+    await communicate.save(output_file)
+    return output_file
+
+if st.button("Generate Audio 🎧", type="primary"):
+    if not text_input:
+        st.warning("Please enter some text.")
     else:
         status = st.empty()
-        bar = st.progress(0)
+        status.text("Generating...")
         
         try:
-            # Step A: File Setup
-            status.text("Processing Audio...")
-            ext = os.path.splitext(uploaded_file.name)[1]
-            if not ext: ext = ".wav"
-            temp_filename = f"temp_ref{ext}"
+            # Running the async function
+            output_path = asyncio.run(generate_audio(text_input, selected_voice_code, rate_str, pitch_str))
             
-            with open(temp_filename, "wb") as f:
-                f.write(uploaded_file.getbuffer())
-
-            # Step B: Connect to Chosen Space
-            status.text(f"Connecting to {space_id}...")
-            bar.progress(30)
-            
-            # Connect without token (Public Spaces)
-            client = Client(space_id)
-
-            # Step C: Generate
-            status.text("Generating... (Waiting for GPU)")
-            bar.progress(50)
-            
-            # Note: fffiloni space api parameters might differ slightly, 
-            # but usually they follow the standard XTTS pattern.
-            result = client.predict(
-                text_input,      # Text
-                language,        # Language
-                temp_filename,   # Reference Audio
-                temp_filename,   # Mic Audio
-                False,           # Use Mic
-                False,           # Cleanup
-                True,            # Auto-detect off
-                True,            # Agree TOS
-                fn_index=1
-            )
-            
-            bar.progress(100)
             status.text("✅ Done!")
+            st.audio(output_path, format='audio/mp3')
             
-            st.success("Audio Generated:")
-            st.audio(result[1], format='audio/wav')
+            st.success(f"Generated with Pitch: {pitch_str} | Rate: {rate_str}")
             
-            # Cleanup
-            if os.path.exists(temp_filename):
-                os.remove(temp_filename)
-
         except Exception as e:
-            st.error("❌ Error occurred:")
-            st.code(f"{e}")
-            st.warning("Tip: ऊपर दिए गए 'Space ID' को बदलकर लिस्ट में से दूसरा नाम (जैसे 'ruslanmv/Text-To-Speech-XTTS') डालें और फिर बटन दबाएं।")
-            
+            st.error(f"Error: {e}")
+
+st.markdown("---")
+st.caption("Designed for AstraToonix | Runs smoothly on Koyeb Free Tier")
