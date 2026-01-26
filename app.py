@@ -4,64 +4,102 @@ import asyncio
 import os
 
 # --- Page Config ---
-st.set_page_config(page_title="AstraToonix Voice Tuner", page_icon="🎚️")
+st.set_page_config(page_title="AstraToonix Pro Studio", page_icon="🎭")
 
-st.title("🎚️ AstraToonix Voice Tuner")
-st.markdown("### Create Unique Voices (Unlimited & Free)")
-st.info("ℹ️ Since XTTS servers are down globally, we are using Neural Edge TTS with Pitch Control to create unique voices.")
+st.title("🎭 AstraToonix Pro Voice Studio")
+st.info("💡 Tip: Use tags like [pause], [fast], [laugh] to make it realistic!")
 
-# --- Inputs ---
-text_input = st.text_area("Script (Hindi/English):", "नमस्ते राजदेव भाई! AstraToonix चैनल पर आपका स्वागत है।", height=100)
-
-# Voice Selection
+# --- Voice Settings ---
 voice_options = {
-    "Hindi - Swara (Female)": "hi-IN-SwaraNeural",
     "Hindi - Madhur (Male)": "hi-IN-MadhurNeural",
-    "English - Christopher (Male)": "en-US-ChristopherNeural",
-    "English - Aria (Female)": "en-US-AriaNeural",
-    "English - Guy (Male)": "en-US-GuyNeural"
+    "Hindi - Swara (Female)": "hi-IN-SwaraNeural",
+    "English - Christopher": "en-US-ChristopherNeural"
 }
-selected_voice_name = st.selectbox("Select Base Voice:", list(voice_options.keys()))
-selected_voice_code = voice_options[selected_voice_name]
+selected_voice = st.selectbox("Select Voice:", list(voice_options.keys()))
+voice_code = voice_options[selected_voice]
 
-# --- 🎚️ The Magic Controls (To make it UNIQUE) ---
-col1, col2 = st.columns(2)
+# --- Input Area ---
+default_text = """नमस्ते दोस्तों! [pause] 
+आज हम कुछ तूफानी करने वाले हैं। [laugh]
+क्या आप तैयार हैं? [fast] जल्दी बताओ भाई देर हो रही है! [normal]
+आराम से रिलैक्स होकर बैठो।"""
 
+text_input = st.text_area("Script Editor:", default_text, height=200)
+
+# --- Helper Buttons for Tags ---
+col1, col2, col3, col4 = st.columns(4)
 with col1:
-    # Rate: -50% (Slow) to +50% (Fast)
-    rate_val = st.slider("Speaking Rate (Speed)", -50, 50, 0, format="%d%%")
-    rate_str = f"{rate_val:+d}%"
-
+    st.caption("**[pause]** = 1 sec break")
 with col2:
-    # Pitch: -20Hz (Deep) to +20Hz (High/Chipmunk)
-    pitch_val = st.slider("Pitch (Tone/Bhari-pan)", -20, 20, 0, format="%dHz")
-    pitch_str = f"{pitch_val:+d}Hz"
+    st.caption("**[laugh]** = Fake laugh")
+with col3:
+    st.caption("**[fast]** = Excited speed")
+with col4:
+    st.caption("**[slow]** = Sad/Serious")
+
+# --- SSML Processor (The Magic Logic) ---
+def process_text_to_ssml(text, voice):
+    # 1. Newlines remove karein taaki flow na tute (Flow fix)
+    clean_text = text.replace("\n", " ")
+    
+    # 2. Convert custom tags to Microsoft SSML
+    # Break/Pause
+    clean_text = clean_text.replace("[pause]", '<break time="800ms"/>')
+    clean_text = clean_text.replace("[long_pause]", '<break time="1500ms"/>')
+    
+    # Laughter (Jugaad: High pitch + Fast speed)
+    laugh_ssml = '<prosody rate="+50%" pitch="+15Hz">हा हा हा हा</prosody>'
+    clean_text = clean_text.replace("[laugh]", laugh_ssml)
+    
+    # Fast / Excited
+    clean_text = clean_text.replace("[fast]", '<prosody rate="+20%" pitch="+5Hz">')
+    
+    # Slow / Serious
+    clean_text = clean_text.replace("[slow]", '<prosody rate="-10%" pitch="-5Hz">')
+    
+    # Reset to Normal (Closing the tag)
+    clean_text = clean_text.replace("[normal]", '</prosody>')
+    
+    # 3. Wrap in full SSML structure
+    ssml_content = f"""
+    <speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='hi-IN'>
+        <voice name='{voice}'>
+            {clean_text}
+        </voice>
+    </speak>
+    """
+    return ssml_content
 
 # --- Generation Logic ---
-async def generate_audio(text, voice, rate, pitch):
-    communicate = edge_tts.Communicate(text, voice, rate=rate, pitch=pitch)
-    output_file = "output_voice.mp3"
+async def generate_audio(ssml_data):
+    communicate = edge_tts.Communicate(ssml_data, voice_code)
+    output_file = "output_pro.mp3"
+    # SSML mode on karne ke liye text ko directly nahi, ssml=True bhejna padta hai,
+    # lekin edge-tts library me direct ssml string pass karte hain communicate me.
     await communicate.save(output_file)
     return output_file
 
-if st.button("Generate Audio 🎧", type="primary"):
+if st.button("Generate Realistic Audio 🎬", type="primary"):
     if not text_input:
-        st.warning("Please enter some text.")
+        st.warning("Kuch likhiye to sahi!")
     else:
         status = st.empty()
-        status.text("Generating...")
+        status.text("Processing Emotion Tags...")
         
         try:
-            # Running the async function
-            output_path = asyncio.run(generate_audio(text_input, selected_voice_code, rate_str, pitch_str))
+            # Step 1: Text ko SSML codes me badlo
+            final_ssml = process_text_to_ssml(text_input, voice_code)
+            
+            # Step 2: Audio banao
+            output_path = asyncio.run(generate_audio(final_ssml))
             
             status.text("✅ Done!")
             st.audio(output_path, format='audio/mp3')
-            
-            st.success(f"Generated with Pitch: {pitch_str} | Rate: {rate_str}")
+            st.success("Audio Generated with Emotions!")
             
         except Exception as e:
             st.error(f"Error: {e}")
+            st.warning("Agar error aaye, to check karein ki [fast] tag ke baad [normal] lagaya hai ya nahi.")
 
 st.markdown("---")
-st.caption("Designed for AstraToonix | Runs smoothly on Koyeb Free Tier")
+st.caption("AstraToonix Pro | Powered by Edge SSML")
