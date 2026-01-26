@@ -3,17 +3,28 @@ from gradio_client import Client
 import os
 import shutil
 
-# --- 1. Page Config ---
-st.set_page_config(page_title="AstraToonix Voice 2026", page_icon="🎙️")
-st.title("🎙️ AstraToonix Voice Generator (No Token Needed)")
-st.info("Using Public Space: Deep50D/XTTS_V2_CPU_fixed")
+# --- Page Config ---
+st.set_page_config(page_title="AstraToonix Universal Voice", page_icon="🎙️")
+st.title("🎙️ AstraToonix Voice (Multi-Server)")
+st.info("अगर एक Server काम न करे, तो नीचे लिस्ट में से दूसरा नाम कॉपी करके पेस्ट करें।")
 
-# --- 2. Inputs ---
-text_input = st.text_area("Text (Hindi/English):", "नमस्ते राजदेव भाई! AstraToonix में आपका स्वागत है।")
+# --- Dynamic Space Input ---
+# यहाँ यूजर खुद सर्वर बदल सकता है
+space_id = st.text_input("Hugging Face Space ID:", value="fffiloni/xtts-v2-streaming")
+
+st.markdown("""
+**Try these Spaces if the default fails:**
+1. `fffiloni/xtts-v2-streaming` (Best Public)
+2. `ruslanmv/Text-To-Speech-XTTS` (Backup)
+3. `kiv/xtts-v2` (Another Backup)
+""")
+
+# --- Inputs ---
+text_input = st.text_area("Text (Hindi/English):", "नमस्ते राजदेव भाई! यह एक टेस्ट है।")
 language = st.selectbox("Language", ["hi", "en"], index=0)
 uploaded_file = st.file_uploader("Reference Audio (5-10s)", type=['wav', 'mp3', 'm4a'])
 
-# --- 3. Generation ---
+# --- Generation ---
 if st.button("Generate Voice 🚀", type="primary"):
     if not uploaded_file:
         st.warning("⚠️ Please upload an audio file first.")
@@ -24,7 +35,6 @@ if st.button("Generate Voice 🚀", type="primary"):
         try:
             # Step A: File Setup
             status.text("Processing Audio...")
-            # Extension handle karna
             ext = os.path.splitext(uploaded_file.name)[1]
             if not ext: ext = ".wav"
             temp_filename = f"temp_ref{ext}"
@@ -32,18 +42,19 @@ if st.button("Generate Voice 🚀", type="primary"):
             with open(temp_filename, "wb") as f:
                 f.write(uploaded_file.getbuffer())
 
-            # Step B: Connect to Public Space (NO TOKEN NEEDED)
-            status.text("Connecting to Public Server...")
+            # Step B: Connect to Chosen Space
+            status.text(f"Connecting to {space_id}...")
             bar.progress(30)
             
-            # यह एक Public Space है, इसलिए hf_token की जरूरत नहीं
-            client = Client("Deep50D/XTTS_V2_CPU_fixed")
+            # Connect without token (Public Spaces)
+            client = Client(space_id)
 
             # Step C: Generate
-            status.text("Generating... (Might take 1-2 mins on CPU)")
+            status.text("Generating... (Waiting for GPU)")
             bar.progress(50)
             
-            # API Call (Parameters for this specific space)
+            # Note: fffiloni space api parameters might differ slightly, 
+            # but usually they follow the standard XTTS pattern.
             result = client.predict(
                 text_input,      # Text
                 language,        # Language
@@ -67,7 +78,7 @@ if st.button("Generate Voice 🚀", type="primary"):
                 os.remove(temp_filename)
 
         except Exception as e:
-            st.error("❌ Error:")
+            st.error("❌ Error occurred:")
             st.code(f"{e}")
-            st.warning("Tip: Since this is a Free CPU Space, it might be slow. Be patient.")
-
+            st.warning("Tip: ऊपर दिए गए 'Space ID' को बदलकर लिस्ट में से दूसरा नाम (जैसे 'ruslanmv/Text-To-Speech-XTTS') डालें और फिर बटन दबाएं।")
+            
