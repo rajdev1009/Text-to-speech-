@@ -1,52 +1,45 @@
 import streamlit as st
 import edge_tts
 import asyncio
-import os
+import io  # Ye memory (RAM) handle karne ke liye hai
 
 # --- Page Config ---
 st.set_page_config(page_title="AstraToonix Studio", page_icon="🎙️")
 
-# --- 1. TITLE & DISCLAIMER (Updated) ---
-st.title("AstraToonix")  # Main Title
-st.caption("Welcome to Raj Audio Studio | Feedback Dena mat bhulna")
+# --- Session State (Memory) ---
+if "audio_buffer" not in st.session_state:
+    st.session_state.audio_buffer = None
 
-# Disclaimer Box
+# --- 1. TITLE & DISCLAIMER ---
+st.title("AstraToonix")
+st.caption("Welcome to Raj Audio Studio | RAM Mode (Fast & Error Free)")
+
 st.warning("""
-⚠️ **जरूरी सूचना (Disclaimer):**
-* अगर आपने **Hindi Voice** चुनी है, तो बॉक्स में **हिंदी शब्द (Hindi Words)** ही लिखें।
-* अगर आप **English Voice** use कर रहे हैं, तो **Full English** में ही लिखें।
-* मिक्स करने पर (खिचड़ी भाषा में) आवाज़ सही नहीं आएगी।
+⚠️ **जरूरी सूचना:**
+* Hindi Voice के लिए **हिंदी शब्द** ही लिखें।
+* English Voice के लिए **English** लिखें।
 """)
 
-# --- 2. EXPANDED VOICE LIST (12 Voices) ---
+# --- 2. VOICE LIST ---
 voice_options = {
-    # --- Hindi Voices ---
     "🇮🇳 Hindi - Rajdev (Male)": "hi-IN-MadhurNeural",
     "🇮🇳 Hindi - Swara (Female)": "hi-IN-SwaraNeural",
-    
-    # --- Indian English ---
     "🇮🇳 English (India) - Prabhat (Male)": "en-IN-PrabhatNeural",
     "🇮🇳 English (India) - Neerja (Female)": "en-IN-NeerjaNeural",
-    
-    # --- US English ---
     "🇺🇸 English (US) - Christopher (Movie Guy)": "en-US-ChristopherNeural",
     "🇺🇸 English (US) - Guy (Standard Male)": "en-US-GuyNeural",
     "🇺🇸 English (US) - Jenny (Standard Female)": "en-US-JennyNeural",
     "🇺🇸 English (US) - Aria (Energetic)": "en-US-AriaNeural",
     "🇺🇸 English (US) - Ana (Child Voice)": "en-US-AnaNeural",
-    
-    # --- UK English ---
     "🇬🇧 English (UK) - Ryan (Male)": "en-GB-RyanNeural",
     "🇬🇧 English (UK) - Sonia (Female)": "en-GB-SoniaNeural",
-    
-    # --- Heavy ---
     "🇺🇸 English (US) - Eric (Heavy Male)": "en-US-EricNeural"
 }
 
 selected_voice_name = st.selectbox("Select Voice (Character):", list(voice_options.keys()))
 selected_voice_code = voice_options[selected_voice_name]
 
-# --- 3. Sliders ---
+# --- 3. SLIDERS ---
 col1, col2 = st.columns(2)
 with col1:
     rate_val = st.slider("Speed (Flow)", -50, 50, 10, format="%d%%")
@@ -56,31 +49,28 @@ with col2:
     pitch_val = st.slider("Pitch (Tone)", -20, 20, -2, format="%dHz")
     pitch_str = f"{pitch_val:+d}Hz"
 
-# --- 4. Script Input ---
+# --- 4. SCRIPT INPUT ---
 st.markdown("### Script:")
-
 default_text = """नमस्ते दोस्तों! मेरा नाम है राजदेव।
+मैं क्रिएटर हूँ AstraToonix का!
+कोडिंग मेरा दिमाग है, लेकिन AstraToonix मेरा दिल है।"""
 
-दुनिया को लगता है कि मैं सिर्फ एक कंप्यूटर के सामने बैठने वाला, चश्मा लगाने वाला बोरिंग Developer हूँ। कोड लिखना, बग्स फिक्स करना और काली स्क्रीन पर हरी लाइनें देखना... यह मेरा पेशा है। मैं एक Developer हूँ।
+text_input = st.text_area("Yahan likhein:", default_text, height=200)
 
-लेकिन रुकिए! कहानी यहाँ खत्म नहीं होती! इस कोडिंग वाली सीरियस ज़िंदगी के पीछे, एक ऐसा इंसान भी है जिसे लोगों को हँसाना पसंद है।
-
-जब कीबोर्ड की खट-खट से मेरा दिमाग थक जाता है, तब शुरू होता है मेरा असली मैजिक! मैं क्रिएटर हूँ AstraToonix का!
-
-हाँ, वही चैनल जहाँ लॉजिक की ऐसी-तैसी करके हम सिर्फ मजे की बात करते हैं। कोडिंग मेरा दिमाग है, लेकिन AstraToonix मेरा दिल है।
-
-तो अगर आप टेक्नोलॉजी और मस्ती, दोनों का मज़ा एक साथ लेना चाहते हैं... तो स्वागत है मेरी दुनिया में! मैं हूँ राजदेव, और अभी तो बस शुरुआत है!"""
-
-text_input = st.text_area("Yahan likhein:", default_text, height=350)
-
-# --- 5. Logic ---
-async def generate_audio(text, v_code, rate, pitch):
+# --- 5. LOGIC (RAM MODE - NO FILE SAVING) ---
+async def generate_audio_in_memory(text, v_code, rate, pitch):
     clean_text = text.replace("\n", " ")
     communicate = edge_tts.Communicate(clean_text, v_code, rate=rate, pitch=pitch)
-    output_file = "final_output.mp3"
-    await communicate.save(output_file)
-    return output_file
+    
+    # Hum file save nahi karenge, sidha bytes (data) collect karenge
+    audio_data = b""
+    async for chunk in communicate.stream():
+        if chunk["type"] == "audio":
+            audio_data += chunk["data"]
+            
+    return audio_data
 
+# --- GENERATE BUTTON ---
 if st.button("Generate Audio 🎧", type="primary"):
     if not text_input:
         st.warning("Script khali hai!")
@@ -89,21 +79,31 @@ if st.button("Generate Audio 🎧", type="primary"):
         status.text("Generating...")
         
         try:
-            output_path = asyncio.run(generate_audio(text_input, selected_voice_code, rate_str, pitch_str))
+            # 1. RAM me audio generate karo
+            audio_bytes = asyncio.run(generate_audio_in_memory(text_input, selected_voice_code, rate_str, pitch_str))
             
-            status.text("✅ Done!")
-            st.audio(output_path, format='audio/mp3')
-            st.success(f"Character: {selected_voice_name}")
-            
-            # --- Download Button ---
-            with open(output_path, "rb") as file:
-                st.download_button(
-                    label="Download MP3 📥",
-                    data=file,
-                    file_name="AstraToonix_Audio.mp3",
-                    mime="audio/mpeg"
-                )
+            if len(audio_bytes) > 0:
+                # 2. Session State me save karo
+                st.session_state.audio_buffer = audio_bytes
+                status.text("✅ Done!")
+            else:
+                status.error("❌ Audio generate hua par khali (0 bytes) hai. Dubara try karein.")
             
         except Exception as e:
             st.error(f"Error: {e}")
-            
+
+# --- RESULT SECTION ---
+if st.session_state.audio_buffer is not None:
+    st.success("Audio Ready!")
+    
+    # Audio Player (Memory se chalega)
+    st.audio(st.session_state.audio_buffer, format='audio/mp3')
+    
+    # Download Button
+    st.download_button(
+        label="Download MP3 📥",
+        data=st.session_state.audio_buffer,
+        file_name="AstraToonix_Audio.mp3",
+        mime="audio/mpeg"
+    )
+    
